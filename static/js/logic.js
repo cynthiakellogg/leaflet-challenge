@@ -1,7 +1,22 @@
 // Store our API endpoint inside queryUrl
-console.log("connected alrighty");
-var queryUrl = "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2014-01-01&endtime=" +
-  "2014-01-02&maxlongitude=-69.52148437&minlongitude=-123.83789062&maxlatitude=48.74894534&minlatitude=25.16517337";
+// console.log("connected alrighty");
+
+function getColor(d) {
+    return d > 8 ? '#800026' :
+            d > 7  ? '#BD0026' :
+            d > 6  ? '#E31A1C' :
+            d > 5  ? '#FC4E2A' :
+            d > 4   ? '#FD8D3C' :
+                      '#FEB24C' 
+           
+}
+
+function markerBubble(value){
+    return value*30000
+}
+
+
+var queryUrl = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.geojson";
 
 // Perform a GET request to the query URL
 d3.json(queryUrl, function(data) {
@@ -10,22 +25,29 @@ d3.json(queryUrl, function(data) {
 });
 
 function createFeatures(earthquakeData) {
+	var earthquakes = L.geoJSON(earthquakeData,{
+		onEachFeature: function(feature,layer){
 
-  // Define a function we want to run once for each feature in the features array
-  // Give each feature a popup describing the place and time of the earthquake
-  function onEachFeature(feature, layer) {
-    layer.bindPopup("<h3>" + feature.properties.place +
-      "</h3><hr><p>" + new Date(feature.properties.time) + "</p>");
-  }
+			layer.bindPopup("<h3>" + feature.properties.place +"</h3><hr><p>" + new Date(feature.properties.time)+ "</p>" + "<hr><p>Magnitude " + feature.properties.mag + "</p>" )
+          },
+		pointToLayer:function(feature,latlng){
+			return new L.circle(latlng,{
+				radius: markerBubble(feature.properties.mag),
+				fillColor: getColor(feature.properties.mag),
+				fillOpacity:.9,
+				stroke:false,
+			})
+		}
+	});
 
-  // Create a GeoJSON layer containing the features array on the earthquakeData object
-  // Run the onEachFeature function once for each piece of data in the array
-  var earthquakes = L.geoJSON(earthquakeData, {
-    onEachFeature: onEachFeature
-  });
+
+  
+
+
 
   // Sending our earthquakes layer to the createMap function
   createMap(earthquakes);
+//   L.geoJson(earthquakes, {style: style}).addTo(myMap);
 }
 
 function createMap(earthquakes) {
@@ -37,20 +59,15 @@ function createMap(earthquakes) {
     maxZoom: 18,
     zoomOffset: -1,
     id: "mapbox/streets-v11",
-    accessToken: api_key
+    accessToken: api_key,
   });
 
-  var darkmap = L.tileLayer("https://api.mapbox.com/styles/v1/mapbox/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}", {
-    attribution: "Map data &copy; <a href=\"https://www.openstreetmap.org/\">OpenStreetMap</a> contributors, <a href=\"https://creativecommons.org/licenses/by-sa/2.0/\">CC-BY-SA</a>, Imagery © <a href=\"https://www.mapbox.com/\">Mapbox</a>",
-    maxZoom: 18,
-    id: "dark-v10",
-    accessToken: api_key
-  });
+  
 
   // Define a baseMaps object to hold our base layers
   var baseMaps = {
     "Street Map": streetmap,
-    "Dark Map": darkmap
+    // "Dark Map": darkmap
   };
 
   // Create overlay object to hold our overlay layer
@@ -63,8 +80,9 @@ function createMap(earthquakes) {
     center: [
       37.09, -95.71
     ],
-    zoom: 5,
+    zoom: 2,
     layers: [streetmap, earthquakes]
+    
   });
 
   // Create a layer control
@@ -73,4 +91,28 @@ function createMap(earthquakes) {
   L.control.layers(baseMaps, overlayMaps, {
     collapsed: false
   }).addTo(myMap);
+
+
+
+// Create a legend to display information about our map
+var legend = L.control({position: 'bottomright'});
+
+legend.onAdd = function (map) {
+
+    var div = L.DomUtil.create('div', 'info legend'),
+        magnitude = [ 4, 5, 6, 7, 8],
+        labels = [];
+
+    // loop through our density intervals and generate a label with a colored square for each interval
+    for (var i = 0; i < magnitude.length; i++) {
+        div.innerHTML +=
+            '<i style="background:' + getColor(magnitude[i] + 1) + '"></i> ' +
+            magnitude[i] + (magnitude[i + 1] ? '&ndash;' + magnitude[i + 1] + '<br>' : '+');
+    }
+
+    return div;
+};
+
+legend.addTo(myMap);
+  
 }
